@@ -6,7 +6,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.util.math.MatrixStack;
@@ -32,7 +32,7 @@ public class InvisRevealClient implements ClientModInitializer {
             if (matrices == null || consumers == null) return;
 
             Camera camera = mc.gameRenderer.getCamera();
-            Vec3d cam = camera.getPos();
+            Vec3d cam = camera.getCameraPos();
             float tickProgress = mc.getRenderTickCounter().getTickProgress(false);
 
             for (AbstractClientPlayerEntity p : mc.world.getPlayers()) {
@@ -46,7 +46,7 @@ public class InvisRevealClient implements ClientModInitializer {
                 // белый хитбокс
                 matrices.push();
                 matrices.translate(-cam.x, -cam.y, -cam.z);
-                VertexRendering.drawBox(matrices, consumers.getBuffer(RenderLayer.getLines()),
+                VertexRendering.drawBox(matrices, consumers.getBuffer(RenderLayers.lines()),
                         box, 1f, 1f, 1f, 1f);
                 matrices.pop();
 
