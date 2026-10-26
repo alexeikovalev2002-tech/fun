@@ -1,19 +1,19 @@
 package com.example.invisreveal;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.ChatFormatting;
-import net.minecraft.client.Camera;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.ShapeRenderer;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.VertexRendering;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 import java.util.Locale;
@@ -24,48 +24,50 @@ public class InvisRevealClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null || mc.player == null) return;
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.world == null || mc.player == null) return;
 
-            PoseStack pose = context.matrices();
-            MultiBufferSource consumers = context.consumers();
-            Camera camera = mc.gameRenderer.getMainCamera();
-            Vec3 cam = camera.position();
-            float pt = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+            MatrixStack matrices = context.matrices();
+            VertexConsumerProvider consumers = context.consumers();
+            if (matrices == null || consumers == null) return;
 
-            for (AbstractClientPlayer p : mc.level.players()) {
+            Camera camera = mc.gameRenderer.getCamera();
+            Vec3d cam = camera.getPos();
+            float tickProgress = mc.getRenderTickCounter().getTickProgress(false);
+
+            for (AbstractClientPlayerEntity p : mc.world.getPlayers()) {
                 if (p == mc.player || p.isSpectator() || !p.isInvisible()) continue;
-                double dist = Math.sqrt(mc.player.distanceToSqr(p));
+                double dist = Math.sqrt(mc.player.squaredDistanceTo(p));
                 if (dist > RANGE) continue;
 
-                Vec3 pos = p.getPosition(pt);
-                AABB box = p.getDimensions(p.getPose()).makeBoundingBox(pos);
+                Vec3d pos = p.getLerpedPos(tickProgress);
+                Box box = p.getDimensions(p.getPose()).getBoxAt(pos);
 
                 // белый хитбокс
-                pose.pushPose();
-                pose.translate(-cam.x, -cam.y, -cam.z);
-                ShapeRenderer.renderLineBox(pose, consumers.getBuffer(RenderType.lines()),
+                matrices.push();
+                matrices.translate(-cam.x, -cam.y, -cam.z);
+                VertexRendering.drawBox(matrices, consumers.getBuffer(RenderLayer.getLines()),
                         box, 1f, 1f, 1f, 1f);
-                pose.popPose();
+                matrices.pop();
 
                 // ник + HP
                 float hp = p.getHealth() + p.getAbsorptionAmount();
-                Component text = Component.literal(p.getName().getString())
-                        .append(Component.literal(" "))
-                        .append(Component.literal(String.format(Locale.ROOT, "%.1f", hp) + " ❤")
-                                .withStyle(ChatFormatting.RED));
+                Text text = Text.literal(p.getName().getString())
+                        .append(Text.literal(" "))
+                        .append(Text.literal(String.format(Locale.ROOT, "%.1f", hp) + " \u2764")
+                                .formatted(Formatting.RED));
 
                 float scale = 0.025f * (float) Math.max(1.0, dist / 8.0);
-                Font font = mc.font;
+                TextRenderer font = mc.textRenderer;
 
-                pose.pushPose();
-                pose.translate(pos.x - cam.x, box.maxY + 0.5 - cam.y, pos.z - cam.z);
-                pose.mulPose(camera.rotation());
-                pose.scale(scale, -scale, scale);
-                Matrix4f m = pose.last().pose();
-                font.drawInBatch(text, -font.width(text) / 2f, 0, 0xFFFFFFFF, false, m,
-                        consumers, Font.DisplayMode.SEE_THROUGH, 0x40000000, 15728880);
-                pose.popPose();
+                matrices.push();
+                matrices.translate(pos.x - cam.x, box.maxY + 0.5 - cam.y, pos.z - cam.z);
+                matrices.multiply(camera.getRotation());
+                matrices.scale(scale, -scale, scale);
+                Matrix4f m = matrices.peek().getPositionMatrix();
+                font.draw(text, -font.getWidth(text) / 2f, 0f, 0xFFFFFFFF, false, m,
+                        consumers, TextRenderer.TextLayerType.SEE_THROUGH, 0x40000000, 15728880);
+                matrices.pop();
             }
         });
     }
