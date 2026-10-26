@@ -46,7 +46,7 @@ public class InvisRevealClient implements ClientModInitializer {
                 // белый хитбокс
                 matrices.push();
                 matrices.translate(-cam.x, -cam.y, -cam.z);
-                VertexRendering.drawBox(matrices, consumers.getBuffer(RenderLayers.lines()),
+                VertexRendering.drawBox(matrices.peek(), consumers.getBuffer(RenderLayers.lines()),
                         box, 1f, 1f, 1f, 1f);
                 matrices.pop();
 
